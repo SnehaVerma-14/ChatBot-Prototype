@@ -1,13 +1,16 @@
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Root GET route
 app.get("/", (req, res) => {
@@ -20,25 +23,21 @@ app.post("/chat", async (req, res) => {
   if (!userMessage) return res.status(400).json({ error: "No prompt provided" });
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: { text: userMessage },
-          maxOutputTokens: 256,
-        }),
-      }
-    );
-
-    const data = await response.json();
-    const aiText = data?.candidates?.[0]?.output || "No answer from AI.";
-
-    res.json({ aiResponse: aiText });
+    console.log("User message:", userMessage);
+    
+    // Use Gemini 2.5 Flash-Lite model (best free tier limits)
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    
+    const result = await model.generateContent(userMessage);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log("Response:", text);
+    res.json({ aiResponse: text });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error("Full Error:", err.message);
+    console.error("Error Details:", err);
+    res.status(500).json({ error: err.message || "Something went wrong" });
   }
 });
 
